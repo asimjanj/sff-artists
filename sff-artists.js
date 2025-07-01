@@ -1,10 +1,10 @@
 /* ============================================================
-   SFF Artist Profile – CSV fetch (no CSP issues)
+   SFF Artist Profile  –  CSV fetch (ASCII-only, 2025-07-01)
    ============================================================ */
 (function () {
-  /* ---- CONFIG ---- */
+  /* ----------  CONFIG  ---------- */
   const SHEET_ID   = '17NWurBNv3Fu53afNlC-d4xsc37w_LDIuHmk-uhoPTsg';
-  const SHEET_NAME = 'Artist Mastersheet - Live';          // plain hyphen
+  const SHEET_NAME = 'Artist Mastersheet - Live'; // plain hyphen
   const CSV_URL =
     'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(SHEET_NAME);
@@ -20,50 +20,61 @@
     ['youtube',   'YouTube'  ]
   ];
 
-  const sanitize = (html = '') =>
-    html.replace(/<\\/?\\s*(script|style|iframe|object|embed|link)[^>]*?>/gi, '');
+  /* ----------  Helpers  ---------- */
+  const sanitize = (str = '') =>
+    str.replace(/<\\/?\\s*(script|style|iframe|object|embed|link)[^>]*?>/gi, '');
 
-  /* ---- tiny CSV parser (commas not allowed inside cells) ---- */
+  /* Trivial CSV -> rows (commas not in cell values) */
   const csvToRows = csv =>
     csv.trim().split(/\\r?\\n/).map(line => line.split(','));
 
-  /* ---- fetch & render ---- */
+  const buildCard = a => {
+    const linksHtml = LINKS
+      .filter(([k]) => a[k])
+      .map(([k, label]) =>
+        '<a href="' + a[k] + '" target="_blank" rel="noopener">' + label + '</a>')
+      .join('');
+
+    return (
+      '<article class="sff-card">' +
+        '<h3 class="sff-name">' + (a.name || 'Unknown Artist') + '</h3>' +
+        '<div class="sff-img">' +
+          '<img src="' + (a.image || 'https://via.placeholder.com/400?text=Artist') +
+          '" alt="' + (a.name || 'Artist') + ' profile" loading="lazy">' +
+        '</div>' +
+        '<p class="sff-bio">' + sanitize(a.profile) + '</p>' +
+        '<div class="sff-links">' + linksHtml + '</div>' +
+      '</article>'
+    );
+  };
+
+  /* ----------  Main ---------- */
   async function init () {
-    const target = document.getElementById(TARGET_ID);
-    if (!target) return;
+    const container = document.getElementById(TARGET_ID);
+    if (!container) return;
 
     try {
       const text = await fetch(CSV_URL).then(r => r.text());
       const rows = csvToRows(text);
       const heads = rows.shift().map(h => h.toLowerCase().trim());
-      const list  = rows.map(r => {
-        const o = {};
-        heads.forEach((h,i) => { o[h] = r[i] || ''; });
-        return o;
-      }).sort((a,b) => (+a.order || 0) - (+b.order || 0));
 
-      target.innerHTML = list.map(a => `
-        <article class="sff-card">
-          <h3 class="sff-name">${a.name || 'Unknown Artist'}</h3>
-          <div class="sff-img">
-            <img src="${a.image || 'https://via.placeholder.com/400?text=Artist'}"
-                 alt="${a.name || 'Artist'} profile" loading="lazy">
-          </div>
-          <p class="sff-bio">${sanitize(a.profile)}</p>
-          <div class="sff-links">
-            ${LINKS.filter(([k]) => a[k])
-                    .map(([k,l]) => `<a href="${a[k]}" target="_blank" rel="noopener">${l}</a>`)
-                    .join('')}
-          </div>
-        </article>`).join('');
+      const list = rows.map(r => {
+        const obj = {};
+        heads.forEach((h, i) => { obj[h] = r[i] || ''; });
+        return obj;
+      }).sort((a, b) => (+a.order || 0) - (+b.order || 0));
+
+      container.innerHTML = list.map(buildCard).join('');
     } catch (err) {
-      console.error('Artist fetch error', err);
-      target.textContent = 'Could not load artist profiles.';
+      console.error('SFF artist fetch error', err);
+      container.textContent = 'Could not load artist profiles.';
     }
   }
 
-  /* run when DOM ready */
+  /* Run after DOM ready */
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
-  } else init();
+  } else {
+    init();
+  }
 })();
